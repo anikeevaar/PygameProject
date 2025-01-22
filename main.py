@@ -82,6 +82,7 @@ if __name__ == '__main__':
                     global collision_count
                     collision_count += 1
                     print(f"Столкновений: {collision_count}")
+                    print(f"Очки: {collision_count * 50}")
 
                 if not self.collided:
                     self.rect = self.rect.move(0, 1)  # Продолжаем падение, если не было столкновения

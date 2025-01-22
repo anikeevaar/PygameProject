@@ -2,7 +2,6 @@ import os
 import sys
 import pygame
 import random
-from pygame import sprite
 
 def load_image(name, colorkey=None):
     fullname = os.path.join('data', name)

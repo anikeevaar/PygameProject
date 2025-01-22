@@ -54,6 +54,8 @@ if __name__ == '__main__':
                     self.rect.right = width
 
     collision_count = 0
+    points = 0
+    missed_sprites = 0
 
     class Landing(pygame.sprite.Sprite):
         def __init__(self, pos, name, size):
@@ -72,6 +74,9 @@ if __name__ == '__main__':
             # Смещение объекта относительно корзины
 
         def update(self):
+            global collision_count
+            global points
+            global missed_sprites
             if not self.stuck:
                 if not pygame.sprite.collide_mask(self, mountain):
                     self.rect = self.rect.move(0, 1)  # Падение с фиксированной скоростью
@@ -79,15 +84,24 @@ if __name__ == '__main__':
                     self.collided = True
                     self.stuck = True  # Объект прилипает к корзине
                     self.offset_x = self.rect.x - mountain.rect.x  # Сохраняем смещение
-                    global collision_count
+                    if "orange" in self.name:
+                        points += 50
+                    elif "apple" in self.name:
+                        points += 25
+                    elif "banana" in self.name:
+                        points += 15
+                    else:
+                        points += 5
                     collision_count += 1
                     print(f"Столкновений: {collision_count}")
-                    print(f"Очки: {collision_count * 50}")
+                    print(f"Очки: {points}")
 
                 if not self.collided:
                     self.rect = self.rect.move(0, 1)  # Продолжаем падение, если не было столкновения
 
                 if self.rect.top > height:  # Удаляем объект, если он вышел за пределы экрана
+                    missed_sprites += 1  # Увеличиваем счетчик пропущенных спрайтов
+                    print(f"Пропущено спрайтов: {missed_sprites}")
                     self.kill()
             else:
                 # Если объект прилип к корзине, обновляем его позицию вместе с корзиной

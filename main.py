@@ -2,6 +2,7 @@ import os
 import sys
 import pygame
 import random
+import json
 
 def load_image(name, colorkey=None):
     fullname = os.path.join('data', name)
@@ -30,13 +31,13 @@ if __name__ == '__main__':
     background_image = pygame.transform.scale(background_image1, (width, height))
     background_rect = background_image.get_rect()
 
-    class Mountain(pygame.sprite.Sprite):
+    class Basket(pygame.sprite.Sprite):
         image1 = load_image("backet.png", -1)
         image = pygame.transform.scale(image1, (200, 150))  # Масштабируем изображение
 
         def __init__(self):
             super().__init__(all_sprites)
-            self.image = Mountain.image
+            self.image = Basket.image
             self.rect = self.image.get_rect()
             self.mask = pygame.mask.from_surface(self.image)
             self.rect.bottom = height  # Располагаем корзину внизу экрана
@@ -57,10 +58,11 @@ if __name__ == '__main__':
     points = 0
     missed_sprites = 0
 
-    class Landing(pygame.sprite.Sprite):
-        def __init__(self, pos, name, size):
+    class Fruits(pygame.sprite.Sprite):
+        def __init__(self, pos, name, size, point):
             super().__init__(all_sprites)
             self.name = name
+            self.point = point
             image1 = load_image(self.name, -1)
             image = pygame.transform.scale(image1, size)  # Масштабируем изображение
             mask = pygame.mask.from_surface(image)
@@ -78,20 +80,13 @@ if __name__ == '__main__':
             global points
             global missed_sprites
             if not self.stuck:
-                if not pygame.sprite.collide_mask(self, mountain):
+                if not pygame.sprite.collide_mask(self, basket):
                     self.rect = self.rect.move(0, 1)  # Падение с фиксированной скоростью
-                if not self.collided and pygame.sprite.collide_mask(self, mountain):
+                if not self.collided and pygame.sprite.collide_mask(self, basket):
                     self.collided = True
                     self.stuck = True  # Объект прилипает к корзине
-                    self.offset_x = self.rect.x - mountain.rect.x  # Сохраняем смещение
-                    if "orange" in self.name:
-                        points += 50
-                    elif "apple" in self.name:
-                        points += 25
-                    elif "banana" in self.name:
-                        points += 15
-                    else:
-                        points += 5
+                    self.offset_x = self.rect.x - basket.rect.x  # Сохраняем смещение
+                    points += point
                     collision_count += 1
                     print(f"Столкновений: {collision_count}")
                     print(f"Очки: {points}")
@@ -105,14 +100,16 @@ if __name__ == '__main__':
                     self.kill()
             else:
                 # Если объект прилип к корзине, обновляем его позицию вместе с корзиной
-                self.rect.x = mountain.rect.x + self.offset_x
+                self.rect.x = basket.rect.x + self.offset_x
 
-    mountain = Mountain()
+    basket = Basket()
     running = True
     clock = pygame.time.Clock()
     c = 0
     pygame.time.set_timer(pygame.USEREVENT, 1000)# Таймер для создания объектов каждые 2 секунды
     d = 0
+    with open('data.json', 'r') as file:
+        sprites_list = json.load(file)
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -120,37 +117,26 @@ if __name__ == '__main__':
             if event.type == pygame.USEREVENT:
                 if collision_count % 20 == 0:
                     d += 10
-                sprites_list = ["orange.png", "red_apple1.png", "red_apple2.png", "red_apple3.png", "banana1.png",
-                                "banana2.png", "pear1.png", "pear2.png", "pear3.png", "green_apple1.png",
-                                "green_apple2.png", "green_apple3.png"]
-                name = random.choice(sprites_list)
-                if name == sprites_list[0]:
-                    size = (200, 200)
-                elif name == sprites_list[1] or name == sprites_list[2] or name == sprites_list[3]:
-                    size = (100, 100)
-                elif name == sprites_list[4] or name == sprites_list[5]:
-                    size = (150, 150)
-                elif name == sprites_list[6] or name == sprites_list[7] or name == sprites_list[8]:
-                    size = (120, 120)
-                else:
-                    size = (100, 100)
+                item = random.choice(sprites_list)
+                name = item[0]
+                size = item[1]
+                point = item[2]
                 x = random.randint(0, width - 100)  # Случайная позиция по оси X
-                Landing((x, 0), name, size)  # Создаем новый объект в верхней части экрана
+                Fruits((x, 0), name, size, point)  # Создаем новый объект в верхней части экрана
 
             # Обработка нажатия левой кнопки мыши
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:  # Левая кнопка мыши
-                    if mountain.rect.collidepoint(event.pos):  # Проверяем, нажали ли на корзину
-                        mountain.dragging = True  # Начинаем перемещение
+                    if basket.rect.collidepoint(event.pos):  # Проверяем, нажали ли на корзину
+                        basket.dragging = True  # Начинаем перемещение
 
             # Обработка отпускания левой кнопки мыши
             if event.type == pygame.MOUSEBUTTONUP:
                 if event.button == 1:  # Левая кнопка мыши
-                    mountain.dragging = False  # Останавливаем перемещение
+                    basket.dragging = False  # Останавливаем перемещение
 
         # Отрисовываем фоновое изображение
         screen.blit(background_image, background_rect)
-
         # Обновляем и отрисовываем все спрайты
         all_sprites.update()
         all_sprites.draw(screen)

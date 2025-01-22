@@ -1,0 +1,14 @@
+[
+  ["orange.png", [200, 200], 50],
+  ["red_apple1.png", [100, 100], 25],
+  ["red_apple2.png", [100, 100], 25],
+  ["red_apple3.png", [100, 100], 25],
+  ["banana1.png", [150, 150], 15],
+  ["banana2.png", [150, 150], 15],
+  ["pear1.png", [120, 120], 5],
+  ["pear2.png", [120, 120], 5],
+  ["pear3.png", [120, 120], 5],
+  ["green_apple1.png", [100, 100], 25],
+  ["green_apple2.png", [100, 100], 25],
+  ["green_apple3.png", [100, 100], 25]
+]

@@ -270,6 +270,7 @@ def login_screen(screen, font):
 
         pygame.display.flip()
 
+
 if __name__ == '__main__':
     pygame.init()
     size = width, height = 600, 600

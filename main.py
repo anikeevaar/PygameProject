@@ -3,7 +3,11 @@ import sys
 import pygame
 import random
 import json
-
+collision_count = 0
+points = 0
+missed_sprites = 0
+game_over = False
+# Функция для загрузки изображений
 def load_image(name, colorkey=None):
     fullname = os.path.join('data', name)
     if not os.path.isfile(fullname):
@@ -19,11 +23,31 @@ def load_image(name, colorkey=None):
         image = image.convert_alpha()  # Используем convert_alpha() для прозрачности
     return image
 
-if __name__ == '__main__':
+# Функция для загрузки пользователей из файла
+def load_users():
+    if os.path.exists('users.bd'):
+        with open('users.bd', 'r') as file:
+            return json.load(file)
+    return {}
+
+# Функция для сохранения пользователей в файл
+def save_users(users):
+    with open('users.bd', 'w') as file:
+        json.dump(users, file)
+
+# Функция для отображения текста на экране
+def draw_text(screen, text, x, y, font, color=(255, 255, 255)):
+    text_surface = font.render(text, True, color)
+    screen.blit(text_surface, (x, y))
+
+# Функция для создания кнопки
+def draw_button(screen, text, x, y, width, height, font, color=(0, 0, 0), bg_color=(200, 200, 200)):
+    pygame.draw.rect(screen, bg_color, (x, y, width, height))
+    draw_text(screen, text, x + 10, y + 10, font, color)
+
+# Основная функция игры
+def main_game(screen, font):
     FPS = 50
-    pygame.init()
-    size = width, height = 600, 600
-    screen = pygame.display.set_mode(size)
     all_sprites = pygame.sprite.Group()
 
     # Загружаем фоновое изображение
@@ -53,11 +77,7 @@ if __name__ == '__main__':
                     self.rect.left = 0
                 if self.rect.right > width:
                     self.rect.right = width
-
-    collision_count = 0
-    points = 0
-    missed_sprites = 0
-    game_over = False  # Флаг для завершения игры
+  # Флаг для завершения игры
 
     class Fruits(pygame.sprite.Sprite):
         def __init__(self, pos, name, size, point):
@@ -77,10 +97,7 @@ if __name__ == '__main__':
             # Смещение объекта относительно корзины
 
         def update(self):
-            global collision_count
-            global points
-            global missed_sprites
-            global game_over
+            global collision_count, points, missed_sprites, game_over
             if not self.stuck:
                 if not pygame.sprite.collide_mask(self, basket):
                     self.rect = self.rect.move(0, 1)  # Падение с фиксированной скоростью
@@ -88,7 +105,7 @@ if __name__ == '__main__':
                     self.collided = True
                     self.stuck = True  # Объект прилипает к корзине
                     self.offset_x = self.rect.x - basket.rect.x  # Сохраняем смещение
-                    points += point
+                    points += self.point
                     collision_count += 1
                     print(f"Столкновений: {collision_count}")
                     print(f"Очки: {points}")
@@ -114,10 +131,6 @@ if __name__ == '__main__':
     d = 0
     with open('data.json', 'r') as file:
         sprites_list = json.load(file)
-
-    # Инициализация шрифта
-    pygame.font.init()
-    font = pygame.font.Font(None, 36)  # Используем стандартный шрифт и размер 36
 
     def reset_game():
         """Сброс состояния игры для начала заново."""
@@ -175,14 +188,96 @@ if __name__ == '__main__':
             screen.blit(background_image, background_rect)
             # Создаем текст с количеством очков
             game_over_text = font.render(f"Игра окончена! Ваши очки: {points}", True, (245, 152, 66))
-            screen.blit(game_over_text, (width // 2 - game_over_text.get_width() // 2 + 10, height // 2 - game_over_text.get_height() // 2 + 10))
+            screen.blit(game_over_text, (
+            width // 2 - game_over_text.get_width() // 2 + 10, height // 2 - game_over_text.get_height() // 2 + 10))
 
             # Создаем кнопку "Вернуться"
             return_button_text = font.render("Вернуться", True, (245, 152, 66))
             return_button_rect = return_button_text.get_rect(center=(width // 2, height // 2 + 50))
             pygame.draw.rect(screen, (30, 255, 0), return_button_rect)  # Зеленый прямоугольник для кнопки
             screen.blit(return_button_text, return_button_rect.topleft)
-
         pygame.display.flip()
         clock.tick(FPS + d)  # Ограничиваем FPS до 50
+
+# Функция для отображения экрана входа и регистрации
+def login_screen(screen, font):
+    users = load_users()
+    input_boxes = [
+        {"rect": pygame.Rect(200, 150, 200, 32), "text": "", "active": False, "label": "Логин:"},
+        {"rect": pygame.Rect(200, 250, 200, 32), "text": "", "active": False, "label": "Пароль:"}
+    ]
+    buttons = [
+        {"rect": pygame.Rect(200, 350, 200, 50), "text": "Войти", "action": "login"},
+        {"rect": pygame.Rect(200, 420, 200, 50), "text": "Регистрация", "action": "register"}
+    ]
+    active_box = None
+    running = True
+
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                # Проверяем, нажали ли на поле ввода
+                for box in input_boxes:
+                    if box["rect"].collidepoint(event.pos):
+                        active_box = box
+                        for other_box in input_boxes:
+                            if other_box != box:
+                                other_box["active"] = False
+                        box["active"] = True
+                    else:
+                        box["active"] = False
+
+                # Проверяем, нажали ли на кнопку
+                for button in buttons:
+                    if button["rect"].collidepoint(event.pos):
+                        if button["action"] == "login":
+                            username = input_boxes[0]["text"]
+                            password = input_boxes[1]["text"]
+                            if username in users and users[username] == password:
+                                print("Вход выполнен!")
+                                return True
+                            else:
+                                print("Неверный логин или пароль!")
+                        elif button["action"] == "register":
+                            username = input_boxes[0]["text"]
+                            password = input_boxes[1]["text"]
+                            if username not in users:
+                                users[username] = password
+                                save_users(users)
+                                print("Регистрация успешна!")
+                            else:
+                                print("Пользователь уже существует!")
+
+            if event.type == pygame.KEYDOWN:
+                if active_box is not None:
+                    if event.key == pygame.K_BACKSPACE:
+                        active_box["text"] = active_box["text"][:-1]
+                    else:
+                        active_box["text"] += event.unicode
+
+        screen.fill((30, 30, 30))
+        for box in input_boxes:
+            color = (255, 255, 255) if box["active"] else (200, 200, 200)
+            pygame.draw.rect(screen, color, box["rect"], 2)
+            draw_text(screen, box["label"], box["rect"].x - 100, box["rect"].y + 5, font)
+            draw_text(screen, box["text"], box["rect"].x + 5, box["rect"].y + 5, font)
+
+        for button in buttons:
+            draw_button(screen, button["text"], button["rect"].x, button["rect"].y, button["rect"].width, button["rect"].height, font)
+
+        pygame.display.flip()
+
+
+if __name__ == '__main__':
+    pygame.init()
+    size = width, height = 600, 600
+    screen = pygame.display.set_mode(size)
+    font = pygame.font.Font(None, 36)
+
+    if login_screen(screen, font):
+        main_game(screen, font)
+
     pygame.quit()

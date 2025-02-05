@@ -19,6 +19,7 @@ def load_image(name, colorkey=None):
         image = image.convert_alpha()  # Используем convert_alpha() для прозрачности
     return image
 
+
 if __name__ == '__main__':
     FPS = 50
     pygame.init()

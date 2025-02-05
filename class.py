@@ -1,283 +1,405 @@
-import os
+import cv2
 import sys
-import pygame
-import random
-import json
-collision_count = 0
-points = 0
-missed_sprites = 0
-game_over = False
-# Функция для загрузки изображений
-def load_image(name, colorkey=None):
-    fullname = os.path.join('data', name)
-    if not os.path.isfile(fullname):
-        print(f"Файл с изображением '{fullname}' не найден")
-        sys.exit()
-    image = pygame.image.load(fullname)
-    if colorkey is not None:
-        image = image.convert()
-        if colorkey == -1:
-            colorkey = image.get_at((0, 0))
-        image.set_colorkey(colorkey)
-    else:
-        image = image.convert_alpha()  # Используем convert_alpha() для прозрачности
-    return image
+import sqlite3
+import bcrypt
+import re
+from main import collision_count, points, game_over, missed_sprites, start
+from PyQt6 import QtCore, QtWidgets, QtGui
+from PyQt6.QtWidgets import (
+    QApplication,
+    QWidget,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QVBoxLayout,
+    QHBoxLayout,
+    QMessageBox,
+    QSpacerItem,
+    QSizePolicy
+)
+from PyQt6.QtGui import QFont
 
-# Функция для загрузки пользователей из файла
-def load_users():
-    if os.path.exists('users.bd'):
-        with open('users.bd', 'r') as file:
-            return json.load(file)
-    return {}
 
-# Функция для сохранения пользователей в файл
-def save_users(users):
-    with open('users.bd', 'w') as file:
-        json.dump(users, file)
+def is_password_strong(password):
+    """Проверка, является ли пароль надежным по заданным критериям."""
+    if len(password) < 8:
+        return False
+    if not re.search(r"[A-Z]", password):
+        return False
+    if not re.search(r"[a-z]", password):
+        return False
+    if not re.search(r"[0-9]", password):
+        return False
+    if not re.search(r"[!@#$%^&*()_+,.]", password):
+        return False
+    return True
 
-# Функция для отображения текста на экране
-def draw_text(screen, text, x, y, font, color=(255, 255, 255)):
-    text_surface = font.render(text, True, color)
-    screen.blit(text_surface, (x, y))
 
-# Функция для создания кнопки
-def draw_button(screen, text, x, y, width, height, font, color=(0, 0, 0), bg_color=(200, 200, 200)):
-    pygame.draw.rect(screen, bg_color, (x, y, width, height))
-    draw_text(screen, text, x + 10, y + 10, font, color)
+class BaseForm(QWidget):
+    """Базовый класс для форм входа и регистрации."""
 
-# Основная функция игры
-def main_game(screen, font):
-    FPS = 50
-    all_sprites = pygame.sprite.Group()
+    def __init__(self, title, button_text, link_text, link_action):
+        super().__init__()
+        self.setWindowTitle(title)  # Установка заголовка окна
+        self.setFixedSize(250, 250)  # Фиксированный размер окна
 
-    # Загружаем фоновое изображение
-    background_image1 = load_image("fon.png")
-    background_image = pygame.transform.scale(background_image1, (width, height))
-    background_rect = background_image.get_rect()
+        # Создание виджетов
+        self.title_label = QLabel(title)  # Заголовок формы
+        self.username_label = QLabel("Никнейм:")  # Метка для никнейма
+        self.username_input = QLineEdit()  # Поле ввода для никнейма
+        self.password_label = QLabel("Пароль:")  # Метка для пароля
+        self.password_input = QLineEdit()  # Поле ввода для пароля
+        self.password_input.setEchoMode(QLineEdit.EchoMode.Password)  # Скрытие ввода пароля
+        self.action_button = QPushButton(button_text)  # Кнопка для действия (вход/регистрация)
+        self.link_label = QLabel(link_text)  # Ссылка для перехода между формами
 
-    class Basket(pygame.sprite.Sprite):
-        image1 = load_image("backet.png", -1)
-        image = pygame.transform.scale(image1, (200, 150))  # Масштабируем изображение
+        # Настройка шрифта
+        font = QFont("Arial", 10)  # Шрифт Arial, размер 10
+        self.title_label.setFont(font)
+        self.username_label.setFont(font)
+        self.password_label.setFont(font)
+        self.username_input.setFont(font)
+        self.password_input.setFont(font)
+        self.action_button.setFont(font)
+        self.link_label.setFont(font)
 
-        def __init__(self):
-            super().__init__(all_sprites)
-            self.image = Basket.image
-            self.rect = self.image.get_rect()
-            self.mask = pygame.mask.from_surface(self.image)
-            self.rect.bottom = height  # Располагаем корзину внизу экрана
-            self.dragging = False  # Флаг для отслеживания перемещения
+        # Размещение виджетов
+        main_layout = QVBoxLayout()  # Основной вертикальный layout
+        input_layout = QVBoxLayout()  # Вертикальный layout для ввода
+        username_layout = QHBoxLayout()  # Горизонтальный layout для никнейма
+        password_layout = QHBoxLayout()  # Горизонтальный layout для пароля
 
-        def update(self):
-            if self.dragging:
-                # Перемещаем корзину по оси X в позицию курсора мыши
-                self.rect.centerx = pygame.mouse.get_pos()[0]
+        # Добавление виджетов в layout
+        username_layout.addWidget(self.username_label)
+        username_layout.addWidget(self.username_input)
+        password_layout.addWidget(self.password_label)
+        password_layout.addWidget(self.password_input)
+        input_layout.addLayout(username_layout)
+        input_layout.addLayout(password_layout)
+        main_layout.addWidget(self.title_label)
+        main_layout.addLayout(input_layout)
+        main_layout.addWidget(self.action_button)
+        main_layout.addWidget(self.link_label)
 
-                # Проверяем, чтобы корзина не выходила за пределы экрана
-                if self.rect.left < 0:
-                    self.rect.left = 0
-                if self.rect.right > width:
-                    self.rect.right = width
-  # Флаг для завершения игры
+        # Центрирование формы
+        main_layout.addSpacerItem(QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))
+        main_layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.setLayout(main_layout)
 
-    class Fruits(pygame.sprite.Sprite):
-        def __init__(self, pos, name, size, point):
-            super().__init__(all_sprites)
-            self.name = name
-            self.point = point
-            image1 = load_image(self.name, -1)
-            image = pygame.transform.scale(image1, size)  # Масштабируем изображение
-            mask = pygame.mask.from_surface(image)
-            self.image = image
-            self.rect = self.image.get_rect()
-            self.rect.x = pos[0]
-            self.rect.y = pos[1]
-            self.collided = False
-            self.stuck = False  # Флаг для отслеживания, прилип ли объект к корзине
-            self.offset_x = 0
-            # Смещение объекта относительно корзины
+        # Подключение действий
+        self.action_button.clicked.connect(self.perform_action)  # Подключение кнопки к методу
+        self.link_label.mousePressEvent = link_action  # Подключение ссылки к действию
 
-        def update(self):
-            global collision_count, points, missed_sprites, game_over
-            if not self.stuck:
-                if not pygame.sprite.collide_mask(self, basket):
-                    self.rect = self.rect.move(0, 1)  # Падение с фиксированной скоростью
-                if not self.collided and pygame.sprite.collide_mask(self, basket):
-                    self.collided = True
-                    self.stuck = True  # Объект прилипает к корзине
-                    self.offset_x = self.rect.x - basket.rect.x  # Сохраняем смещение
-                    points += self.point
-                    collision_count += 1
-                    print(f"Столкновений: {collision_count}")
-                    print(f"Очки: {points}")
+    def perform_action(self):
+        """Метод для выполнения действия (вход или регистрация)."""
+        pass  # Этот метод будет переопределен в дочерних классах
 
-                if not self.collided:
-                    self.rect = self.rect.move(0, 1)  # Продолжаем падение, если не было столкновения
+username = ""
+class LoginForm(BaseForm):
+    """Класс формы входа."""
 
-                if self.rect.top > height:  # Удаляем объект, если он вышел за пределы экрана
-                    missed_sprites += 1  # Увеличиваем счетчик пропущенных спрайтов
-                    print(f"Пропущено спрайтов: {missed_sprites}")
-                    if missed_sprites == 1:  # Если пропущен первый спрайт
-                        game_over = True  # Завершаем игру
-                    self.kill()
+    def __init__(self, on_login_success):
+        self.on_login_success = on_login_success  # Ссылка на действие при успешном входе
+        super().__init__("Вход", "Войти", "Нет аккаунта? Зарегистрироваться", self.show_registration)
+        self.username = ""
+
+    def perform_action(self):
+        """Обработка входа пользователя."""
+        global username
+        self.username = self.username_input.text()  # Получение никнейма
+        password = self.password_input.text()  # Получение пароля
+        username = self.username
+
+        # Проверка на заполненность полей
+        if not self.username or not password:
+            QMessageBox.warning(self, "Ошибка", "Пожалуйста, заполните все поля.")
+            return
+
+        # Проверка пользователя в базе данных
+        conn = sqlite3.connect('users.db')  # Подключение к базе данных
+        c = conn.cursor()
+        c.execute("SELECT password FROM users WHERE username=?", (self.username,))
+        result = c.fetchone()  # Получение результата запроса
+        # Проверка пароля
+        if result and bcrypt.checkpw(password.encode('utf-8'), result[0].encode('utf-8')):
+            QMessageBox.information(self, "Успех", "Вы успешно вошли в систему!")
+            self.on_login_success()  # Вызов действия при успешном входе
+            self.close()  # Закрытие формы
+        else:
+            QMessageBox.warning(self, "Ошибка", "Неверный никнейм или пароль.")
+
+        conn.close()  # Закрытие соединения с базой данных ```python
+
+    def show_registration(self, event):
+        """Показать форму регистрации."""
+        self.registration_form = RegistrationForm(self)  # Создание формы регистрации
+        self.registration_form.exec()  # Открываем форму регистрации
+
+
+class RegistrationForm(BaseForm):
+    """Класс формы регистрации."""
+
+    def __init__(self, login_form):
+        self.login_form = login_form  # Ссылка на форму входа
+        super().__init__("Регистрация", "Зарегистрироваться", "Уже есть аккаунт? Войти", self.show_login)
+        self.setStyleSheet("background-image: url('background.jpg');")  # Установка фона
+
+    def perform_action(self):
+        username = self.username_input.text()  # Получение никнейма
+        password = self.password_input.text()  # Получение пароля
+        record = 0  # Установка рекорда по умолчанию
+
+        # Проверка на заполненность полей
+        if not username or not password:
+            QMessageBox.warning(self, "Ошибка", "Пожалуйста, заполните все поля.")
+            return
+
+        # Проверка надежности пароля
+        if not is_password_strong(password):
+            QMessageBox.warning(self, "Ошибка", "Пароль должен содержать минимум 8 символов, "
+                                                "включать заглавные и строчные буквы, "
+                                                "цифры и специальные символы.")
+            return
+
+        # Хеширование пароля
+        hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+        conn = sqlite3.connect('users.db')  # Подключение к базе данных
+        c = conn.cursor()
+
+        try:
+            # Вставка нового пользователя в базу данных с рекордом
+            c.execute("INSERT INTO users (username, password, record) VALUES (?, ?, ?)",
+                      (username, hashed_password.decode('utf-8'), record))
+            conn.commit()  # Сохранение изменений
+            QMessageBox.information(self, "Успех", "Вы успешно зарегистрированы!")
+            self.username_input.clear()  # Очистка поля никнейма
+            self.password_input.clear()  # Очистка поля пароля
+        except sqlite3.IntegrityError:
+            QMessageBox.warning(self, "Ошибка", "Пользователь с таким никнеймом уже существует.")
+
+        conn.close()  # Закрытие соединения с базой данных
+
+    def show_login(self, event):
+        """Показать форму входа."""
+        self.login_form.show()  # Показать форму входа
+        self.close()  # Закрыть форму регистрации
+
+class MainMenu(QtWidgets.QWidget):
+    """Класс главного меню."""
+
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Главное меню")  # Установка заголовка окна
+        layout = QtWidgets.QVBoxLayout(self)  # Основной вертикальный layout
+
+        # Добавление изображения
+        self.avatar_label = QtWidgets.QLabel(self)  # Метка для аватара
+        self.avatar_label.setPixmap(
+            QtGui.QPixmap("ava.png").scaled(500, 500, QtCore.Qt.AspectRatioMode.KeepAspectRatio))
+        layout.addWidget(self.avatar_label, alignment=QtCore.Qt.AlignmentFlag.AlignCenter)
+
+        # Приветствие
+        self.greeting_label = QtWidgets.QLabel(self)  # Метка для приветствия
+        self.greeting_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        self.update_greeting()  # Обновление приветствия
+        layout.addWidget(self.greeting_label)
+
+        # Кнопки меню
+        rules_button = QtWidgets.QPushButton("Правила игры", self)  # Кнопка для правил игры
+        rules_button.clicked.connect(self.show_rules)
+        layout.addWidget(rules_button)
+
+        easy_button = QtWidgets.QPushButton("Легкий", self)  # Кнопка для легкого уровня
+        easy_button.clicked.connect(self.start_easy_game)
+        layout.addWidget(easy_button)
+
+        medium_button = QtWidgets.QPushButton("Простой", self)  # Кнопка для простого уровня
+        medium_button.clicked.connect(self.start_medium_game)
+        layout.addWidget(medium_button)
+
+        hard_button = QtWidgets.QPushButton("Сложный", self)  # Кнопка для сложного уровня
+        hard_button.clicked.connect(self.start_hard_game)
+        layout.addWidget(hard_button)
+
+        info_button = QtWidgets.QPushButton("Информация", self)  # Кнопка для информации
+        info_button.clicked.connect(self.show_information)
+        layout.addWidget(info_button)
+
+        exit_button = QtWidgets.QPushButton("Выход из системы", self)  # Кнопка для выхода
+        exit_button.clicked.connect(self.exit_application)
+        layout.addWidget(exit_button)
+
+        self.setGeometry(300, 300, 600, 600)  # Установка размера окна
+
+    def update_greeting(self):
+        """Обновление приветственного сообщения в зависимости от текущего времени."""
+        current_hour = QtCore.QDateTime.currentDateTime().time().hour()  # Получение текущего часа
+        if current_hour < 6:
+            greeting = "Доброй ночи!"
+        elif current_hour < 12:
+            greeting = "Доброе утро!"
+        elif current_hour < 18:
+            greeting = "Добрый день!"
+        else:
+            greeting = "Добрый вечер!"
+
+        self.greeting_label.setText(f"<h1>{greeting}</h1>")  # Установка приветственного сообщения
+
+    def show_rules(self):
+        """Показать правила игры."""
+        QtWidgets.QMessageBox.information(self, "Правила игры", "Здесь будут правила игры.")
+
+    def start_easy_game(self):
+        """Запуск легкой игры."""
+        QtWidgets.QMessageBox.information(self, "Легкий уровень", "Запуск легкой игры...")
+        start(0, username)
+
+    def start_medium_game(self):
+        """Запуск простой игры."""
+        QtWidgets.QMessageBox.information(self, "Простой уровень", "Запуск простой игры...")
+        start(1, username)
+
+    def start_hard_game(self):
+        """Запуск сложной игры."""
+        QtWidgets.QMessageBox.information(self, "Сложный уровень", "Запуск сложной игры...")
+        start(2, username)
+
+    def show_information(self):
+        """Показать информацию о приложении."""
+        QtWidgets.QMessageBox.information(self, "Информация",
+                                          "Это приложение создано для демонстрации возможностей Pygame и игры с его использованием")
+
+    def exit_application(self):
+        """Обработка выхода из приложения."""
+        reply = QtWidgets.QMessageBox.question(self, "Выход", "Вы действительно хотите выйти?",
+                                               QtWidgets.QMessageBox.StandardButton.Yes |
+                                               QtWidgets.QMessageBox.StandardButton.No)
+        if reply == QtWidgets.QMessageBox.StandardButton.Yes:
+            QtWidgets.QApplication.quit()
+
+
+class VideoPlayer(QtWidgets.QWidget):
+    """Класс для воспроизведения видео и аутентификации."""
+
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Вход в систему")  # Установка заголовка окна
+        self.setWindowIcon(QtGui.QIcon("ava.png"))  # Установка иконки окна
+
+        # Получение размеров экрана для центрирования окна
+        screen = QtWidgets.QApplication.primaryScreen().geometry()
+        width = screen.width()
+        height = screen.height()
+
+        self.setGeometry(width // 4, height // 4, width // 2, height // 2)  # Установка размера окна
+
+        # Создание QStackedLayout для переключения между формами
+        self.layout = QtWidgets.QStackedLayout(self)
+
+        self.setFixedSize(640, 640)  # Фиксированный размер окна
+
+        # Метка для отображения видео
+        self.video_label = QtWidgets.QLabel(self)
+        self.layout.addWidget(self.video_label)
+
+        self.video_path = "download.mp4"  # Путь к видеофайлу
+        self.cap = cv2.VideoCapture(self.video_path)  # Открытие видеофайла
+        self.timer = QtCore.QTimer()  # Создание таймера для обновления кадров
+        self.timer.timeout.connect(self.update_frame)  # Подключение метода обновления кадров
+        self.timer.start(30)  # Запуск таймера с интервалом 30 мс
+
+        self.is_video_playing = True  # Флаг для проверки воспроизведения видео
+
+        # Создание базы данных
+        self.create_database()
+
+        # Создаем виджет аутентификации
+        self.auth_widget = AuthWidget(self.open_main_menu)  # Создание виджета аутентификации
+        self.layout.addWidget(self.auth_widget)  # Добавление виджета аутентификации в layout
+
+    def create_database(self):
+        """Создание базы данных пользователей, если она не существует."""
+        conn = sqlite3.connect('users.db')  # Подключение к базе данных
+        c = conn.cursor()
+        # Создание таблицы пользователей, если она не существует
+        c.execute('''CREATE TABLE IF NOT EXISTS users (
+                        id INTEGER PRIMARY KEY,
+                        username TEXT NOT NULL UNIQUE,
+                        password TEXT NOT NULL,
+                        record INTEGER DEFAULT 0)''')  # Добавлен столбец для рекорда
+        conn.commit()  # Сохранение изменений
+        conn.close()  # Закрытие соединения с базой данных
+
+    def update_frame(self):
+        """Обновление кадра видео для отображения."""
+        if self.is_video_playing:
+            ret, frame = self.cap.read()  # Чтение кадра из видео
+            if ret:
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # Преобразование цвета
+                h, w, ch = frame.shape  # Получение размеров кадра
+                bytes_per_line = ch * w  # Вычисление количества байт на строку
+                q_img = QtGui.QImage(frame.data, w, h, bytes_per_line, QtGui.QImage.Format.Format_RGB888)
+
+                # Устанавливаем фиксированные размеры для отображения видео
+                fixed_size = QtCore.QSize(640, 640)
+                self.video_label.setPixmap(
+                    QtGui.QPixmap.fromImage(q_img).scaled(fixed_size, QtCore.Qt.AspectRatioMode.KeepAspectRatio,
+                                                          QtCore.Qt.TransformationMode.SmoothTransformation))
             else:
-                # Если объект прилип к корзине, обновляем его позицию вместе с корзиной
-                self.rect.x = basket.rect.x + self.offset_x
+                self.is_video_playing = False  # Остановка воспроизведения видео
+                self.show_auth_widget()  # Показать виджет аутентификации
 
-    basket = Basket()
-    running = True
-    clock = pygame.time.Clock()
-    c = 0
-    pygame.time.set_timer(pygame.USEREVENT, 1000)  # Таймер для создания объектов каждые 2 секунды
-    d = 0
-    with open('data.json', 'r') as file:
-        sprites_list = json.load(file)
+    def show_auth_widget(self):
+        """Показать виджет аутентификации."""
+        self.timer.stop()  # Остановка таймера
+        self.cap.release()  # Освобождение видео
+        self.layout.setCurrentWidget(self.auth_widget)  # Переключаемся на форму аутентификации
+        self.auth_widget.show()  # Показываем форму аутентификации
 
-    def reset_game():
-        """Сброс состояния игры для начала заново."""
-        global collision_count, points, missed_sprites, game_over
-        collision_count = 0
-        points = 0
-        missed_sprites = 0
-        game_over = False
-        all_sprites.empty()  # Очищаем все спрайты
-        basket.__init__()  # Пересоздаем корзину
-
-    while running:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-            if event.type == pygame.USEREVENT and not game_over:
-                if collision_count % 20 == 0:
-                    d += 10
-                item = random.choice(sprites_list)
-                name = item[0]
-                size = item[1]
-                point = item[2]
-                x = random.randint(0, width - 100)  # Случайная позиция по оси X
-                Fruits((x, 0), name, size, point)  # Создаем новый объект в верхней части экрана
-
-            # Обработка нажатия левой кнопки мыши
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button == 1:  # Левая кнопка мыши
-                    if basket.rect.collidepoint(event.pos):  # Проверяем, нажали ли на корзину
-                        basket.dragging = True  # Начинаем перемещение
-                    # Если игра завершена, проверяем, нажата ли кнопка "Вернуться"
-                    if game_over:
-                        mouse_pos = pygame.mouse.get_pos()
-                        if return_button_rect.collidepoint(mouse_pos):
-                            reset_game()  # Сбрасываем игру
-
-            # Обработка отпускания левой кнопки мыши
-            if event.type == pygame.MOUSEBUTTONUP:
-                if event.button == 1:  # Левая кнопка мыши
-                    basket.dragging = False  # Останавливаем перемещение
-
-        # Отрисовываем фоновое изображение
-        screen.blit(background_image, background_rect)
-        # Обновляем и отрисовываем все спрайты
-        all_sprites.update()
-        all_sprites.draw(screen)
-
-        # Отображаем количество очков
-        text = font.render(f"Очки: {points}", True, (245, 152, 66))  # Белый цвет текста
-        screen.blit(text, (width - text.get_width() - 10, 10))  # Позиция текста в верхнем правом углу
-
-        # Если игра завершена, выводим сообщение и кнопку "Вернуться"
-        if game_over:
-            # Очищаем экран
-            screen.blit(background_image, background_rect)
-            # Создаем текст с количеством очков
-            game_over_text = font.render(f"Игра окончена! Ваши очки: {points}", True, (245, 152, 66))
-            screen.blit(game_over_text, (
-            width // 2 - game_over_text.get_width() // 2 + 10, height // 2 - game_over_text.get_height() // 2 + 10))
-
-            # Создаем кнопку "Вернуться"
-            return_button_text = font.render("Вернуться", True, (245, 152, 66))
-            return_button_rect = return_button_text.get_rect(center=(width // 2, height // 2 + 50))
-            pygame.draw.rect(screen, (30, 255, 0), return_button_rect)  # Зеленый прямоугольник для кнопки
-            screen.blit(return_button_text, return_button_rect.topleft)
-        pygame.display.flip()
-        clock.tick(FPS + d)  # Ограничиваем FPS до 50
-
-# Функция для отображения экрана входа и регистрации
-def login_screen(screen, font):
-    users = load_users()
-    input_boxes = [
-        {"rect": pygame.Rect(200, 150, 200, 32), "text": "", "active": False, "label": "Логин:"},
-        {"rect": pygame.Rect(200, 250, 200, 32), "text": "", "active": False, "label": "Пароль:"}
-    ]
-    buttons = [
-        {"rect": pygame.Rect(200, 350, 200, 50), "text": "Войти", "action": "login"},
-        {"rect": pygame.Rect(200, 420, 200, 50), "text": "Регистрация", "action": "register"}
-    ]
-    active_box = None
-    running = True
-
-    while running:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                # Проверяем, нажали ли на поле ввода
-                for box in input_boxes:
-                    if box["rect"].collidepoint(event.pos):
-                        active_box = box
-                        for other_box in input_boxes:
-                            if other_box != box:
-                                other_box["active"] = False
-                        box["active"] = True
-                    else:
-                        box["active"] = False
-
-                # Проверяем, нажали ли на кнопку
-                for button in buttons:
-                    if button["rect"].collidepoint(event.pos):
-                        if button["action"] == "login":
-                            username = input_boxes[0]["text"]
-                            password = input_boxes[1]["text"]
-                            if username in users and users[username] == password:
-                                print("Вход выполнен!")
-                                return True
-                            else:
-                                print("Неверный логин или пароль!")
-                        elif button["action"] == "register":
-                            username = input_boxes[0]["text"]
-                            password = input_boxes[1]["text"]
-                            if username not in users:
-                                users[username] = password
-                                save_users(users)
-                                print("Регистрация успешна!")
-                            else:
-                                print("Пользователь уже существует!")
-
-            if event.type == pygame.KEYDOWN:
-                if active_box is not None:
-                    if event.key == pygame.K_BACKSPACE:
-                        active_box["text"] = active_box["text"][:-1]
-                    else:
-                        active_box["text"] += event.unicode
-
-        screen.fill((30, 30, 30))
-        for box in input_boxes:
-            color = (255, 255, 255) if box["active"] else (200, 200, 200)
-            pygame.draw.rect(screen, color, box["rect"], 2)
-            draw_text(screen, box["label"], box["rect"].x - 100, box["rect"].y + 5, font)
-            draw_text(screen, box["text"], box["rect"].x + 5, box["rect"].y + 5, font)
-
-        for button in buttons:
-            draw_button(screen, button["text"], button["rect"].x, button["rect"].y, button["rect"].width, button["rect"].height, font)
-
-        pygame.display.flip()
+    def open_main_menu(self):
+        """Открыть главное меню после успешного входа."""
+        self.main_menu = MainMenu()  # Создаем экземпляр главного меню
+        self.layout.addWidget(self.main_menu)  # Добавляем главное меню в layout
+        self.layout.setCurrentWidget(self.main_menu)  # Переключаемся на главное меню
 
 
-if __name__ == '__main__':
-    pygame.init()
-    size = width, height = 600, 600
-    screen = pygame.display.set_mode(size)
-    font = pygame.font.Font(None, 36)
+class AuthWidget(QtWidgets.QWidget):
+    """Класс для аутентификации пользователя."""
 
-    if login_screen(screen, font):
-        main_game(screen, font)
+    def __init__(self, on_login_success):
+        super().__init__()
+        self.on_login_success = on_login_success  # Ссылка на действие при успешном входе
 
-    pygame.quit()
+        # Layout
+        self.layout = QVBoxLayout(self)  # Основной вертикальный layout
+
+        # Форма входа
+        self.login_form = LoginForm(self.on_login_success)  # Создание формы входа
+        self.layout.addWidget(self.login_form)  # Добавление формы входа в layout
+
+        # Форма регистрации
+        self.registration_form = RegistrationForm(self.login_form)  # Создание формы регистрации
+        self.layout.addWidget(self.registration_form)  # Добавление формы регистрации в layout
+
+        # Скрыть форму регистрации изначально
+        self.registration_form.hide()  # Скрытие формы регистрации
+
+        # Подключение сигналов
+        self.login_form.link_label.mousePressEvent = self.show_registration  # Подключение ссылки к действию
+
+    def show_registration(self, event):
+        """Показать форму регистрации."""
+        self.login_form.hide()  # Скрыть форму входа
+        self.registration_form.show()  # Показать форму регистрации
+
+    def show_login(self):
+        """Показать форму входа."""
+        self.registration_form.hide()  # Скрыть форму регистрации
+        self.login_form.show()  # Показать форму входа
+
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)  # Создание приложения
+    window = VideoPlayer()  # Создание окна воспроизведения видео
+    window.show()  # Отображение окна
+    sys.exit(app.exec())  # Запуск приложения

@@ -52,8 +52,10 @@ class BaseForm(QWidget):
 
     def __init__(self, title, button_text, link_text, link_action):
         super().__init__()
-        self.setWindowTitle(title)  # Установка заголовка окна
-        self.setFixedSize(250, 250)  # Фиксированный размер окна
+        # Установка заголовка окна
+        self.setWindowTitle(title)
+        # Фиксированный размер окна
+        self.setFixedSize(250, 250)
 
         self.setWindowIcon(QtGui.QIcon("ava.png"))
 
@@ -116,7 +118,8 @@ class LoginForm(BaseForm):
     """Класс формы входа."""
 
     def __init__(self, on_login_success):
-        self.on_login_success = on_login_success  # Ссылка на действие при успешном входе
+        # Ссылка на действие при успешном входе
+        self.on_login_success = on_login_success
         super().__init__("Вход", "Войти", "Нет аккаунта? Зарегистрироваться", self.show_registration)
         self.username = ""
         self.setWindowIcon(QtGui.QIcon("ava.png"))
@@ -158,15 +161,19 @@ class RegistrationForm(BaseForm):
     """Класс формы регистрации."""
 
     def __init__(self, login_form):
-        self.login_form = login_form  # Ссылка на форму входа
+        # Ссылка на форму входа
+        self.login_form = login_form
         super().__init__("Регистрация", "Зарегистрироваться", "Уже есть аккаунт? Войти", self.show_login)
         self.setStyleSheet("background-image: url('background.jpg');")  # Установка фона
         self.setWindowIcon(QtGui.QIcon("ava.png"))
 
     def perform_action(self):
-        username = self.username_input.text()  # Получение никнейма
-        password = self.password_input.text()  # Получение пароля
-        record = 0  # Установка рекорда по умолчанию
+        # Получение никнейма
+        username = self.username_input.text()
+        # Получение пароля
+        password = self.password_input.text()
+        # Установка рекорда по умолчанию
+        record = 0
 
         # Проверка на заполненность полей
         if not username or not password:
@@ -182,7 +189,8 @@ class RegistrationForm(BaseForm):
 
         # Хеширование пароля
         hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
-        conn = sqlite3.connect('users.db')  # Подключение к базе данных
+        # Подключение к базе данных
+        conn = sqlite3.connect('users.db')
         c = conn.cursor()
 
         try:
@@ -230,23 +238,28 @@ class MainMenu(QtWidgets.QWidget):
         rules_button.clicked.connect(self.show_rules)
         layout.addWidget(rules_button)
 
-        easy_button = QtWidgets.QPushButton("Легкий", self)  # Кнопка для легкого уровня
+        # Кнопка для легкого уровня
+        easy_button = QtWidgets.QPushButton("Легкий", self)
         easy_button.clicked.connect(self.start_easy_game)
         layout.addWidget(easy_button)
 
-        medium_button = QtWidgets.QPushButton("Простой", self)  # Кнопка для простого уровня
+        # Кнопка для простого уровня
+        medium_button = QtWidgets.QPushButton("Простой", self)
         medium_button.clicked.connect(self.start_medium_game)
         layout.addWidget(medium_button)
 
-        hard_button = QtWidgets.QPushButton("Сложный", self)  # Кнопка для сложного уровня
+        # Кнопка для сложного уровня
+        hard_button = QtWidgets.QPushButton("Сложный", self)
         hard_button.clicked.connect(self.start_hard_game)
         layout.addWidget(hard_button)
 
-        info_button = QtWidgets.QPushButton("Информация", self)  # Кнопка для информации
+        # Кнопка для информации
+        info_button = QtWidgets.QPushButton("Информация", self)
         info_button.clicked.connect(self.show_information)
         layout.addWidget(info_button)
 
-        exit_button = QtWidgets.QPushButton("Выход из системы", self)  # Кнопка для выхода
+        # Кнопка для выхода
+        exit_button = QtWidgets.QPushButton("Выход из системы", self)
         exit_button.clicked.connect(self.exit_application)
         layout.addWidget(exit_button)
 

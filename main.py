@@ -30,6 +30,7 @@ def load_image(name, colorkey=None):
 def start(level, name):
     FPS = 50
     pygame.init()
+    pygame.display.set_caption('Игра')
     size = width, height = 800, 800
     screen = pygame.display.set_mode(size)
     all_sprites = pygame.sprite.Group()
@@ -41,7 +42,7 @@ def start(level, name):
 
     class Basket(pygame.sprite.Sprite):
         image1 = load_image("backet.png", -1)
-        image = pygame.transform.scale(image1, (200, 150))  # Масштабируем изображение
+        image = pygame.transform.scale(image1, (250, 250))  # Масштабируем изображение
 
         def __init__(self):
             super().__init__(all_sprites)

@@ -1,10 +1,22 @@
 import cv2
+
 import sys
+
 import sqlite3
+
 import bcrypt
+
 import re
-from main import collision_count, points, game_over, missed_sprites, start
-from PyQt6 import QtCore, QtWidgets, QtGui
+
+from main import start
+from main import collision_count
+from main import points
+from main import game_over
+from main import missed_sprites
+
+from PyQt6 import (QtCore,
+                   QtWidgets,
+                   QtGui)
 from PyQt6.QtWidgets import (
     QApplication,
     QWidget,
@@ -42,6 +54,8 @@ class BaseForm(QWidget):
         super().__init__()
         self.setWindowTitle(title)  # Установка заголовка окна
         self.setFixedSize(250, 250)  # Фиксированный размер окна
+
+        self.setWindowIcon(QtGui.QIcon("ava.png"))
 
         # Создание виджетов
         self.title_label = QLabel(title)  # Заголовок формы
@@ -94,7 +108,10 @@ class BaseForm(QWidget):
         """Метод для выполнения действия (вход или регистрация)."""
         pass  # Этот метод будет переопределен в дочерних классах
 
+
 username = ""
+
+
 class LoginForm(BaseForm):
     """Класс формы входа."""
 
@@ -102,6 +119,7 @@ class LoginForm(BaseForm):
         self.on_login_success = on_login_success  # Ссылка на действие при успешном входе
         super().__init__("Вход", "Войти", "Нет аккаунта? Зарегистрироваться", self.show_registration)
         self.username = ""
+        self.setWindowIcon(QtGui.QIcon("ava.png"))
 
     def perform_action(self):
         """Обработка входа пользователя."""
@@ -143,6 +161,7 @@ class RegistrationForm(BaseForm):
         self.login_form = login_form  # Ссылка на форму входа
         super().__init__("Регистрация", "Зарегистрироваться", "Уже есть аккаунт? Войти", self.show_login)
         self.setStyleSheet("background-image: url('background.jpg');")  # Установка фона
+        self.setWindowIcon(QtGui.QIcon("ava.png"))
 
     def perform_action(self):
         username = self.username_input.text()  # Получение никнейма
@@ -184,6 +203,7 @@ class RegistrationForm(BaseForm):
         self.login_form.show()  # Показать форму входа
         self.close()  # Закрыть форму регистрации
 
+
 class MainMenu(QtWidgets.QWidget):
     """Класс главного меню."""
 
@@ -191,6 +211,7 @@ class MainMenu(QtWidgets.QWidget):
         super().__init__()
         self.setWindowTitle("Главное меню")  # Установка заголовка окна
         layout = QtWidgets.QVBoxLayout(self)  # Основной вертикальный layout
+        self.setWindowIcon(QtGui.QIcon("ava.png"))
 
         # Добавление изображения
         self.avatar_label = QtWidgets.QLabel(self)  # Метка для аватара
@@ -247,27 +268,82 @@ class MainMenu(QtWidgets.QWidget):
 
     def show_rules(self):
         """Показать правила игры."""
-        QtWidgets.QMessageBox.information(self, "Правила игры", "Здесь будут правила игры.")
+        rules_text = (
+            "Правила игры:\n\n"
+            "Управление корзиной:\n"
+            "Корзина перемещается по горизонтали с помощью мыши. "
+            "Нажмите и удерживайте левую кнопку мыши, чтобы перетащить корзину в нужное место. "
+            "Корзина не может выходить за пределы игрового экрана.\n\n"
+
+            "Падение фруктов:\n"
+            "Фрукты появляются в верхней части экрана и падают вниз с заданной скоростью, "
+            "которая зависит от уровня сложности. Если фрукт касается корзины, он прилипает к ней, "
+            "и вы получаете очки.\n\n"
+
+            "Очки:\n"
+            "Каждое пойманное фруктовое изделие приносит определенное количество очков, "
+            "которое указано в данных о фрукте. Очки отображаются в верхнем правом углу экрана.\n\n"
+
+            "Пропущенные фрукты:\n"
+            "Если фрукт падает на землю, он считается пропущенным. Пропущенные фрукты увеличивают "
+            "счетчик пропусков. Если вы пропустите первый фрукт, игра закончится.\n\n"
+
+            "Конец игры:\n"
+            "Игра заканчивается, если вы пропустите первый фрукт. В этом случае на экране появится "
+            "сообщение о завершении игры с указанием набранных очков и рекорда. Вы можете вернуться "
+            "в главное меню или выйти из игры.\n\n"
+
+            "Уровни сложности:\n"
+            "Легкий уровень: Фрукты падают с интервалом 1.5 секунды.\n"
+            "Простой уровень: Фрукты падают с интервалом 0.75 секунды.\n"
+            "Сложный уровень: Фрукты падают с интервалом 0.375 секунды."
+        )
+
+        QtWidgets.QMessageBox.information(self, "Правила игры", rules_text)
 
     def start_easy_game(self):
         """Запуск легкой игры."""
-        QtWidgets.QMessageBox.information(self, "Легкий уровень", "Запуск легкой игры...")
+        QtWidgets.QMessageBox.information(self, "Легкая степень", "Запуск легкой игры...")
         start(0, username)
 
     def start_medium_game(self):
         """Запуск простой игры."""
-        QtWidgets.QMessageBox.information(self, "Простой уровень", "Запуск простой игры...")
+        QtWidgets.QMessageBox.information(self, "Простая степень", "Запуск простой игры...")
         start(1, username)
 
     def start_hard_game(self):
         """Запуск сложной игры."""
-        QtWidgets.QMessageBox.information(self, "Сложный уровень", "Запуск сложной игры...")
+        QtWidgets.QMessageBox.information(self, "Сложная степень", "Запуск сложной игры...")
         start(2, username)
 
     def show_information(self):
         """Показать информацию о приложении."""
-        QtWidgets.QMessageBox.information(self, "Информация",
-                                          "Это приложение создано для демонстрации возможностей Pygame и игры с его использованием")
+        info_text = (
+            "Информация об игре:\n\n"
+            "Название игры:\n"
+            "\"Собери фрукты\"\n\n"
+
+            "Описание:\n"
+            "\"Собери фрукты\" — это увлекательная аркадная игра, в которой игрок управляет корзиной, "
+            "собирая падающие фрукты. Игра развивает реакцию и координацию, а также предлагает возможность "
+            "соревноваться с собой, пытаясь побить собственные рекорды.\n\n"
+
+            "Цели игры:\n"
+            "1. Собрать как можно больше фруктов, чтобы набрать максимальное количество очков.\n"
+            "2. Избегать пропуска фруктов, чтобы не закончить игру.\n\n"
+
+            "Технические характеристики:\n"
+            "Платформа: ПК\n"
+            "Язык программирования: Python\n"
+            "Используемые библиотеки: Pygame для игрового процесса, PyQt6 для графического интерфейса, "
+            "SQLite для хранения данных пользователей.\n\n"
+
+            "Контакты:\n"
+            "Если у вас есть вопросы или предложения по улучшению игры, вы можете связаться с разработчиками "
+            "по электронной почте: alika20090408@mail.ru."
+        )
+
+        QtWidgets.QMessageBox.information(self, "Информация", info_text)
 
     def exit_application(self):
         """Обработка выхода из приложения."""
@@ -369,7 +445,7 @@ class AuthWidget(QtWidgets.QWidget):
     def __init__(self, on_login_success):
         super().__init__()
         self.on_login_success = on_login_success  # Ссылка на действие при успешном входе
-
+        self.setWindowIcon(QtGui.QIcon("ava.png"))
         # Layout
         self.layout = QVBoxLayout(self)  # Основной вертикальный layout
 

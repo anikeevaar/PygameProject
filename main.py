@@ -10,6 +10,7 @@ points = 0
 missed_sprites = 0
 game_over = False
 
+
 def load_image(name, colorkey=None):
     fullname = os.path.join('data', name)
     if not os.path.isfile(fullname):
@@ -24,6 +25,7 @@ def load_image(name, colorkey=None):
     else:
         image = image.convert_alpha()  # Используем convert_alpha() для прозрачности
     return image
+
 
 def start(level, name):
     FPS = 50
@@ -59,7 +61,6 @@ def start(level, name):
                     self.rect.left = 0
                 if self.rect.right > width:
                     self.rect.right = width
-
 
     class Fruits(pygame.sprite.Sprite):
         def __init__(self, pos, name, size, point):
@@ -190,7 +191,7 @@ def start(level, name):
             conn.commit()  # Сохранение изменений
             conn.close()  # Закрытие соединения с базой данных
             screen.blit(game_over_point, (
-            width // 2 - game_over_point.get_width() // 2, height // 2 - game_over_point.get_height() // 2))
+                width // 2 - game_over_point.get_width() // 2, height // 2 - game_over_point.get_height() // 2))
             screen.blit(game_over_rec, (
                 width // 2 - game_over_rec.get_width() // 2 + 20,
                 height // 2 - game_over_rec.get_height() // 2 + 20))
@@ -210,5 +211,3 @@ def start(level, name):
         pygame.display.flip()
         clock.tick(FPS + d)  # Ограничиваем FPS до 50
     pygame.quit()
-
-start(0, "123")
